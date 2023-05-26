@@ -23,7 +23,7 @@ struct QuizEntry {
 }
 
 fn quiz(quiz_entries: &Vec<QuizEntry>, time_limit_in_seconds: u64) -> Result<(), Box<dyn Error>> {
-    let instant = Instant::now();
+    let start = Instant::now();
     let mut correct_count = 0;
     let overall_count = quiz_entries.len();
 
@@ -38,15 +38,13 @@ fn quiz(quiz_entries: &Vec<QuizEntry>, time_limit_in_seconds: u64) -> Result<(),
             guess.clear();
         });
         loop {
-            if instant.elapsed().as_secs() > time_limit_in_seconds {
+            if start.elapsed().as_secs() > time_limit_in_seconds {
                 println!("Time is up");
                 break 'outer;
             }
             match rx.try_recv() {
                 Err(TryRecvError::Empty) => {},
-                Err(_error) => {
-                    panic!("Error when trying to receive answer")
-                },
+                Err(_error) => panic!("Error when trying to receive answer"),
                 Ok(answer) =>{
                     if answer.trim().eq(&quiz_entry.answer) {
                         println!("Correct!");
