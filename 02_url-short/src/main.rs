@@ -25,7 +25,7 @@ fn handle_connection(mut stream: TcpStream, route_mappings: &HashMap<String, Str
 
     match http_request.get(0) {
         Some(first_line) => {
-            let path = *first_line.split(" ").collect::<Vec<_>>().get(1).unwrap();
+            let path = *first_line.split(' ').collect::<Vec<_>>().get(1).unwrap();
             println!("incoming requests for path {}", path);
             let default = String::from("https://beneck.de");
             let target_url = route_mappings.get(path).unwrap_or(&default);
