@@ -5,13 +5,9 @@ use std::{
 use std::collections::HashMap;
 use std::io::BufReader;
 
-
 fn main() {
     let listener = TcpListener::bind("127.0.0.1:8080").unwrap();
-    let route_mappings: HashMap<&str, &str> = HashMap::from([
-        ("/hn", "https://news.ycombinator.com"),
-        ("/monkey", "https://monkeytype.com"),
-    ]);
+    let route_mappings = read_mapping();
 
     for stream in listener.incoming() {
         let stream = stream.unwrap();
@@ -19,7 +15,7 @@ fn main() {
     }
 }
 
-fn handle_connection(mut stream: TcpStream, route_mappings: &HashMap<&str, &str>) {
+fn handle_connection(mut stream: TcpStream, route_mappings: &HashMap<String, String>) {
     let buf_reader = BufReader::new(&mut stream);
     let http_request: Vec<_> = buf_reader
         .lines()
@@ -31,11 +27,19 @@ fn handle_connection(mut stream: TcpStream, route_mappings: &HashMap<&str, &str>
         Some(first_line) => {
             let path = *first_line.split(" ").collect::<Vec<_>>().get(1).unwrap();
             println!("incoming requests for path {}", path);
-            let target_url = *route_mappings.get(path).unwrap_or(&"https://beneck.de");
+            let default = String::from("https://beneck.de");
+            let target_url = route_mappings.get(path).unwrap_or(&default);
             stream.write_all(format!("HTTP/1.1 302 Found\nLocation: {}\n\n", target_url).as_bytes()).unwrap()
         },
         None => {
             stream.write_all("HTTP/1.1 400 Bad Request\n\n".as_bytes()).unwrap()
         }
     }
+}
+
+fn read_mapping() -> HashMap<String, String> {
+    let file = std::fs::File::open("src/mappings.yaml").unwrap();
+    let mapping: HashMap<String, String> = serde_yaml::from_reader(file).unwrap();
+    println!("Read YAML mapping: {:?}", mapping);
+    mapping
 }
