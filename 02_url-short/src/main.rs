@@ -1,45 +1,47 @@
-use std::{
-    io::{prelude::*},
-    net::{TcpListener, TcpStream},
-};
 use std::collections::HashMap;
-use std::io::BufReader;
+use std::net::SocketAddr;
 
-fn main() {
-    let listener = TcpListener::bind("127.0.0.1:8080").unwrap();
-    let route_mappings = read_mapping();
+use http_body_util::Full;
+use hyper::server::conn::http1;
+use hyper::service::service_fn;
+use hyper::{Request, Response, header, StatusCode};
+use hyper::body::Bytes;
+use tokio::net::TcpListener;
 
-    for stream in listener.incoming() {
-        let stream = stream.unwrap();
-        handle_connection(stream, &route_mappings);
+#[tokio::main]
+pub async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let addr: SocketAddr = ([127, 0, 0, 1], 8080).into();
+    let listener = TcpListener::bind(addr).await?;
+    println!("Listening on http://{}", addr);
+    loop {
+        let (stream, _) = listener.accept().await?;
+        tokio::task::spawn(async move {
+            if let Err(err) = http1::Builder::new()
+                .serve_connection(stream, service_fn(redirect))
+                .await
+            {
+                println!("Error serving connection: {:?}", err);
+            }
+        });
     }
 }
 
-fn handle_connection(mut stream: TcpStream, route_mappings: &HashMap<String, String>) {
-    let buf_reader = BufReader::new(&mut stream);
-    let http_request: Vec<_> = buf_reader
-        .lines()
-        .map(|result| result.unwrap())
-        .take_while(|line| !line.is_empty())
-        .collect();
-
-    match http_request.get(0) {
-        Some(first_line) => {
-            let path = *first_line.split(' ').collect::<Vec<_>>().get(1).unwrap();
-            println!("incoming requests for path {}", path);
-            let default = String::from("https://beneck.de");
-            let target_url = route_mappings.get(path).unwrap_or(&default);
-            stream.write_all(format!("HTTP/1.1 302 Found\nLocation: {}\n\n", target_url).as_bytes()).unwrap()
-        },
-        None => {
-            stream.write_all("HTTP/1.1 400 Bad Request\n\n".as_bytes()).unwrap()
-        }
-    }
+async fn redirect(req: Request<hyper::body::Incoming>) -> Result<Response<Full<Bytes>>, Box<dyn std::error::Error + Send + Sync>> {
+    let path = req.uri().path();
+    println!("incoming requests for path {}", path);
+    let target_url = get_target_url(path).await?;
+    Ok(Response::builder()
+        .status(StatusCode::FOUND)
+        .header(header::LOCATION, target_url)
+        .body(Full::new(Bytes::default()))
+        .unwrap())
 }
 
-fn read_mapping() -> HashMap<String, String> {
-    let file = std::fs::File::open("src/mappings.yaml").unwrap();
-    let mapping: HashMap<String, String> = serde_yaml::from_reader(file).unwrap();
+async fn get_target_url(source_path: &str) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+    let contents = tokio::fs::read("src/mappings.yaml").await?;
+    let mapping: HashMap<String, String> = serde_yaml::from_slice(&contents)?;
     println!("Read YAML mapping: {:?}", mapping);
-    mapping
+    let default = String::from("https://beneck.de");
+    let result = mapping.get(source_path).unwrap_or(&default);
+    Ok(result.clone())
 }
