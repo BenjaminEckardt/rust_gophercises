@@ -3,6 +3,7 @@
 - [x] Create path mapping based on `HashMap`
 - [x] Read yaml file for path mapping
 - [x] Move to hyper
-- [ ] Use in-memory db for paths
-- [ ] Support creation of new path mappings
-- [ ] Introduce id generation mechanism (single node)
+- [x] Introduce id generation mechanism (single node)
+- [x] Introduce creation endpoint
+- [x] Introduce some persistence
+- [ ] Mapping errors to HTTP status
