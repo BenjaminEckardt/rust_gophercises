@@ -42,6 +42,7 @@ async fn main() {
 
 async fn redirect(Extension(database): Extension<Database>, Path(short_id): Path<String>) -> Redirect {
     let connection = database.connection().unwrap();
+    tracing::info!("Looking up target for {} ", short_id);
     let mut statement = connection.prepare("SELECT long_url FROM shorts WHERE short_id = ?1").unwrap();
     let rows = statement.query_map([&short_id], |row| {
         let result: String = row.get("long_url").unwrap();
@@ -54,7 +55,7 @@ async fn redirect(Extension(database): Extension<Database>, Path(short_id): Path
 
 async fn shorten_url(Extension(database): Extension<Database>, Json(payload): Json<ShortenUrlPayload>) -> impl IntoResponse {
     let id = nanoid!(10, &nanoid::alphabet::SAFE);
-    tracing::info!("Todo create short url with id {} leading to {}", id, payload.long_url);
+    tracing::info!("Create short url with id {} leading to {}", id, payload.long_url);
     let connection = database.connection().unwrap();
     connection.execute("INSERT INTO shorts (short_id, long_url) values (?1, ?2)", [&id, &payload.long_url]).unwrap();
     (StatusCode::OK, Json(ShortenUrlResponse {short_id: id, long_url: payload.long_url}))
